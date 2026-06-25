@@ -4941,6 +4941,16 @@ function revealMainApp() {
   document.getElementById('main-app').style.display = 'block';
   render();
   showAutosaveNotice();
+  /* Write a login record immediately so we can confirm Firestore is working */
+  if (firestoreDb && currentUser) {
+    firestoreDb.collection('assessments').doc(getDocId()).set({
+      email:            currentUser.email,
+      membershipNumber: currentUser.membershipNumber,
+      lastLogin:        new Date().toISOString()
+    }, { merge: true })
+    .then(() => console.log('[GPSMM] Login recorded in Firestore for', getDocId()))
+    .catch(e  => console.warn('[GPSMM] Firestore login-record error:', e));
+  }
 }
 
 /* ================================================================
@@ -5015,6 +5025,7 @@ function saveToFirestore() {
         totalQuestions:   o.total,
         suggestions
       }, { merge: true });
+      console.log('[GPSMM] Firestore save OK — doc:', getDocId(), '| answers:', o.answered + '/' + o.total);
     } catch(e) { console.warn('[GPSMM] Firestore save error:', e); }
   }, 2500);
 }
