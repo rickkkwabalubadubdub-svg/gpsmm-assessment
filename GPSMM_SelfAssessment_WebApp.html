@@ -212,7 +212,7 @@ a{color:var(--navy-2)}
 }
 
 /* ---- Authentication Screen ---- */
-#auth-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+#auth-screen{position:fixed;inset:0;z-index:1000;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:40px 20px}
 .auth-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:36px 40px;width:100%;max-width:480px;box-shadow:0 8px 40px rgba(0,32,96,.12)}
 .auth-brand{text-align:center;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid var(--line)}
 .auth-logo{width:88px;height:88px;object-fit:contain;display:block;margin:0 auto 14px;filter:drop-shadow(0 2px 6px rgba(0,32,96,.15))}
@@ -4895,6 +4895,45 @@ const FIREBASE_CONFIG = {
 const DB_CONFIGURED = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY_HERE";
 
 /* ================================================================
+   STEP 3 — EmailJS (login notifications to Global@icai.in)
+   ================================================================
+   Every login triggers an email to Global@icai.in with the user's
+   email address, membership number, and timestamp.
+
+   Setup (free — 200 emails/month):
+   1. Create account at https://www.emailjs.com/
+   2. Add Email Service: Email Services → Add Service → Gmail (or SMTP)
+      • Copy the Service ID below
+   3. Create Template: Email Templates → Create New Template
+      • Subject:  New GPSMM Login — {{user_email}}
+      • Body:     Email: {{user_email}}\nMembership: {{membership_no}}\nTime: {{login_time}}
+      • "To Email" field in template settings: Global@icai.in
+      • Copy the Template ID below
+   4. Account → General → Public Key → copy below
+*/
+const EMAILJS_CONFIG = {
+  publicKey:  "YOUR_EMAILJS_PUBLIC_KEY",   // e.g. "abc123XYZ..."
+  serviceId:  "YOUR_SERVICE_ID",           // e.g. "service_xxxxxx"
+  templateId: "YOUR_TEMPLATE_ID"           // e.g. "template_xxxxxx"
+};
+
+const EMAIL_CONFIGURED = EMAILJS_CONFIG.publicKey !== "YOUR_EMAILJS_PUBLIC_KEY";
+
+if (EMAIL_CONFIGURED && typeof emailjs !== 'undefined') {
+  emailjs.init({ publicKey: EMAILJS_CONFIG.publicKey });
+}
+
+function notifyAdminLogin() {
+  if (!EMAIL_CONFIGURED || typeof emailjs === 'undefined' || !currentUser) return;
+  emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
+    user_email:    currentUser.email,
+    membership_no: currentUser.membershipNumber,
+    login_time:    new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST'
+  }).then(() => console.log('[GPSMM] Admin notified via EmailJS'))
+    .catch(e  => console.warn('[GPSMM] EmailJS send error:', e));
+}
+
+/* ================================================================
    Auth state
    ================================================================ */
 let currentUser = null;  // { email, membershipNumber }
@@ -4943,6 +4982,7 @@ function revealMainApp() {
   document.getElementById('main-app').style.display = 'block';
   render();
   showAutosaveNotice();
+  notifyAdminLogin();
   /* Write a login record immediately so we can confirm Firestore is working */
   if (firestoreDb && currentUser) {
     firestoreDb.collection('assessments').doc(getDocId()).set({
